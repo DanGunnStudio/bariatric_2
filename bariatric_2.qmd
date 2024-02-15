@@ -1,0 +1,269 @@
+---
+title: "bariatric_2"
+author: "Dan Gunn"
+---
+
+## Bariatric Suppliers vs. Junk Food Companies vs. Ozempic
+
+```{r echo=FALSE}
+library(lubridate)
+library(tidyquant)
+library(tidyverse)
+library(ggtext)
+library(showtext)
+```
+
+The Bariatric Surgery Supplier companies are...
+
+| Company              | Exchange | Ticker |
+|----------------------|----------|--------|
+| Johnson & Johnson    | NYSE     | JNJ    |
+| Medtronic            | NYSE     | MDT    |
+| Olympus Corporation  | NYSE     | OCPNF  |
+| Boston Scientific    | NYSE     | BSX    |
+| Asensus Surgical     | NYSE     | ASXC   |
+| ConMed Corporation   | NASDAQ   | CNMD   |
+| Intuitive Surgical   | NASDAQ   | ISRG   |
+| Apollo Endosurgery   | Delisted | APEN   |
+| ReShape Lifesciences | NASDAQ   | RSLS   |
+
+```{r}
+symbol_list <- c("JNJ", "MDT", "OCPNF", "BSX", "ASXC", "CNMD", "ISRG", "RSLS")
+start_date <- "2020-01-01"  # Example start date
+end_date <- "2023-12-31"    # Example end date
+
+bariatric_stock_prices <- tq_get(symbol_list, 
+                       from = start_date, 
+                       to = end_date, 
+                       get = "stock.prices",
+                       collapse="monthly")
+```
+
+The processed (junk) food companies will be...
+
+| Company                | Exchange | Ticker |
+|------------------------|----------|--------|
+| Pespico                | NASDAQ   | PEP    |
+| Nestlé USA             |          | NSRGY  |
+| Kraft Heinz Company    | NASDAQ   | KHC    |
+| General Mills          | NYSE     | GIS    |
+| Mondelez International | NASDAQ   | MDLZ   |
+| Kellogg Company        | NYSE     | K      |
+| Conagra Brands         | NYSE     | CAG    |
+| Campbell Soup Company  | NYSE     | CPB    |
+| J.M. Smucker Company   | NYSE     | SJM    |
+
+```{r}
+symbol_list_2 <- c("PEP", "NSRGY", "KHC", "GIS", "MDLZ", "K", "CAG", "CPB", "SJM")
+
+junkfood_stock_prices <- tq_get(symbol_list_2, 
+                       from = start_date, 
+                       to = end_date, 
+                       get = "stock.prices",
+                       collapse="monthly")
+```
+
+There's only one maker of Ozempic at the moment.
+
+| Company      | Exchange | Ticker |
+|--------------|----------|--------|
+| Novo Nordisk | NYSE     | NVO    |
+| Eli Lilly    | NYSE     | LLY    |
+
+```{r}
+symbol_list_3 <- c("NVO", "LLY")
+
+pharma_stock_prices <- tq_get(symbol_list_3, 
+                       from = start_date, 
+                       to = end_date, 
+                       get = "stock.prices",
+                       collapse="monthly")
+```
+
+What if it's just Novo Nordisk
+
+```{r}
+symbol_list_4 <- c("NVO")
+
+novo_stock_prices <- tq_get(symbol_list_4, 
+                       from = start_date, 
+                       to = end_date, 
+                       get = "stock.prices",
+                       collapse="monthly")
+```
+
+```{r}
+library(viridis)
+library(viridisLite)
+
+hex_codes <- viridis(n = 5, option = "G") # Adjust 'n' for the number of colors you need
+hex_codes
+
+```
+
+Combine each data set into daily averages....
+
+```{r}
+bariatric_daily_average <- bariatric_stock_prices %>%
+  group_by(date) %>%
+  summarize(Average_Adjusted = mean(adjusted, na.rm = TRUE))
+```
+
+```{r}
+junkfood_daily_average <- junkfood_stock_prices %>%
+  group_by(date) %>%
+  summarize(Average_Adjusted = mean(adjusted, na.rm = TRUE))
+```
+
+```{r}
+pharma_daily_average <- pharma_stock_prices %>%
+  group_by(date) %>%
+  summarize(Average_Adjusted = mean(adjusted, na.rm = TRUE))
+```
+
+```{r}
+font_add_google(name = "Lato", family = "lato")
+
+showtext_auto()
+```
+
+Now I'm going to plot it to see what's going on.
+
+```{r}
+ggplot() +
+    geom_area(data=bariatric_daily_average,
+            aes(x=date, y= Average_Adjusted),
+            color = "#399687",
+             fill= "#399687",
+            alpha = 0.3)+
+    geom_area(data=junkfood_daily_average,
+            aes(x=date, y= Average_Adjusted),
+            color = "#3E356BFF",
+            fill= "#3E356BFF",
+            alpha = 0.3)+
+  geom_area(data=novo_stock_prices,
+            aes(x=date, y= adjusted),
+            color = "#FF3F70",
+            fill = "#FF3F70",
+            alpha = 0.3)+
+  geom_vline(xintercept = as.Date("2021-06-04"), 
+             linetype = "dotted", 
+             color = "#FF3F70",
+             size = 1)+ 
+  scale_x_date(expand=c(0,0))+
+  scale_y_continuous(expand=c(0,0),
+                     labels = scales::label_dollar())+
+  labs(#title ="Ozempic vs. Junkfood vs. Bariatrics",
+       #subtitle = "Percentage change since Jan 1 2020",
+       #caption="Ozempic FDA Approval Date for Weigh Loss Highlighed",
+       y=NULL,
+       x= NULL)+
+  theme_minimal()+
+  theme(axis.text = element_text(family ="lato", face="bold", size =10, color = "#3E356BFF"),
+        panel.grid.minor = element_blank(),
+        axis.line= element_line(color = "#3E356BFF", linewidth = 0.25),
+        axis.ticks = element_blank()
+        )
+
+```
+
+```{r}
+ggsave(filename =  "charts/bariatric_2_stock.pdf", 
+       plot = last_plot(), 
+       device = "pdf", 
+       dpi= 400,
+       height =4,
+       width = 6)
+```
+
+Now I'd like to plot percentage change up and down.
+
+```{r}
+# Calculate percentage change
+b_initial_value <- bariatric_daily_average$Average_Adjusted[1]
+j_initial_value <- junkfood_daily_average$Average_Adjusted[1]
+n_initial_value <- novo_stock_prices$adjusted[1]
+
+bariatric_daily_average <- bariatric_daily_average %>%
+  mutate(perc_change = ((Average_Adjusted - b_initial_value) / b_initial_value) * 100)
+ 
+junkfood_daily_average <- junkfood_daily_average %>% 
+  mutate(perc_change = ((Average_Adjusted - j_initial_value) / j_initial_value) * 100)
+
+novo_stock_prices<- novo_stock_prices %>% 
+  mutate(perc_change = ((adjusted- n_initial_value) / n_initial_value) * 100)
+
+```
+
+```{r}
+#writing to CSV
+write_csv(bariatric_daily_average, "clean_data/bariatric_daily_average.csv")
+write_csv(junkfood_daily_average, "clean_data/junkfood_daily_average.csv")
+write_csv(novo_stock_prices, "clean_data/novo_stock_prices.csv")
+
+#left joining to use with Datylon
+data_combined <- bariatric_daily_average %>% rename(b_perc_change = perc_change,
+                                   b_Average_Adjusted= Average_Adjusted) %>%
+  left_join(junkfood_daily_average, by = join_by(date))%>%
+  rename(j_perc_change = perc_change,
+         j_Average_Adjusted= Average_Adjusted)%>%
+  left_join(novo_stock_prices, by = join_by(date))
+
+
+write_csv(data_combined, "clean_data/datacombined.csv")
+```
+
+```{r}
+# Plot centered around zero
+ggplot() +
+    geom_area(data=novo_stock_prices,
+            aes(x=date, y= perc_change),
+            color = "#FF3F70",
+            fill = "#FF3F70",
+            alpha = 0.3)+
+
+  geom_area(data=junkfood_daily_average,
+            aes(x=date, y= perc_change),
+            color = "#3E356BFF",
+            fill= "#3E356BFF",
+            alpha = 0.3)+
+    geom_area(data=bariatric_daily_average,
+            aes(x=date, y= perc_change),
+            color = "#399687",
+            fill = "#399687",
+            alpha = 0.3)+
+
+  geom_vline(xintercept = as.Date("2021-06-04"), 
+             linetype = "dotted", 
+             color = "#FF3F70",
+             linewidth = 0.75) +
+  scale_x_date(expand=c(0,0))+
+  scale_y_continuous(expand=c(0,0),
+                     labels = scales::label_percent(scale = 1))+
+  labs(#title ="Ozempic vs. Junkfood vs. Bariatrics",
+       #subtitle = "Percentage change since Jan 1 2020",
+       #caption="Ozempic FDA Approval Date for Weigh Loss Highlighed",
+       y=NULL,
+       x= NULL)+
+  theme_minimal()+
+  theme(axis.text = element_text(family ="lato", face="bold", size =10, color = "#3E356BFF"),
+        panel.grid.minor = element_blank(),
+        axis.line= element_line(color = "#3E356BFF", linewidth = 0.25),
+        axis.ticks = element_blank()
+        )
+```
+
+```{r}
+ggsave(filename =  "charts/bariatric_2_percent.pdf", 
+       plot = last_plot(), 
+       device = "pdf", 
+       dpi= 400,
+       height=4,
+       width=6)
+```
+
+**Methodology:** Adjusted stock prices gathered from January 1, 2020 to December 31, 2023. Surgery manufacturers included the average price of Johnson & Johnson, Medtronic, Olympus, Boston Scientific, Asensus Surgical, ConMed, Intuitive Surgical**,** Apollo Endosurgery and ReShape Lifesciences. Processed food corporations included the average price of PepsiCo, Nestlé, Kraft Heinz, General Mills, Mondelez, Kellogg, Conagra, Campbell Soup and J.M. Smucker.
+
+**Source:** Yahoo Finance
+
+Exported to Adobe Illustrator for completing the infographic.
